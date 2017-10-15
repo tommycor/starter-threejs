@@ -1,82 +1,84 @@
 import * as THREE 			from "three";
-import config 				from '../utils/config';
-import raf 					from '../utils/raf';
-import mapper 				from '../utils/mapper';
-import getIntersectionMouse	from '../utils/getIntersectionMouse';
 
-module.exports = {
+import Component 			from '../colorz/Component';
+import device 				from '../colorz/utils/device';
+import getAbsoluteOffset 	from '../colorz/utils/getAbsoluteOffset';
 
-	init: function() {
-		this.render  	= this.render.bind(this);
-		this.onResize	= this.onResize.bind(this);
-		this.onMove		= this.onMove.bind(this);
-		this.onClick	= this.onClick.bind(this);
+module.exports = class Scene extends Component {
+	onInit( el ) {
+		this.onPointermove 			= this.onPointermove.bind( this );
 
-		this.clock   			= new THREE.Clock();
-		this.cameraPos			= new THREE.Vector3( config.camera.position.x, config.camera.position.y, config.camera.position.z );
-		this.currentCameraPos 	= new THREE.Vector3( this.cameraPos.x, this.cameraPos.y, this.cameraPos.z );
-		
+		this.el 		= el;
+		this.mousePos 	= new THREE.Vector2( 0, 0 );
+	}
+
+	onReady() {
+		this.canvas  = document.createElement( 'canvas' );
+		this.context = this.canvas.getContext('2d');
+
 		this.scene 	   			= new THREE.Scene();
-		this.container 			= config.canvas.element;
+		this.camera 		   	= new THREE.PerspectiveCamera(45, this.ratio, 10, 300);
+		this.camera.position.x 	= 0;
+		this.camera.position.y 	= 0;
+		this.camera.position.z 	= 100;
 
-		this.camera 		   = new THREE.PerspectiveCamera(45, this.ratio, 15, 3000);
-		this.camera.position.x = config.camera.position.x;
-		this.camera.position.y = config.camera.position.y;
-		this.camera.position.z = config.camera.position.z;
-		this.camera.lookAt(config.camera.target);
+		this.renderer = new THREE.WebGLRenderer();
+		this.renderer.setClearColor(0x000000);
+		this.renderer.setSize(this.el.offsetWidth, this.el.offsetHeight);
 
-		//// ADD AXIS HELPER
-		if( config.axisHelper ) {
-			this.axisHelper =  new THREE.AxisHelper( 5 );
-			this.scene.add( this.axisHelper );
-		}
+		this.uniforms = {
+			uResolution:    { type: 'v2', value: new THREE.Vector2( this.width, this.height ) }
+		};
 
-		//// RENDERER
-		this.renderer = new THREE.WebGLRenderer({ antialias: true });
-		this.renderer.setClearColor( config.canvas.color, 1.0 );
-		this.renderer.setSize( window.innerWidth, window.innerHeight );
+		this.geometry = new THREE.PlaneGeometry( 150, 150, 1 );
+		this.material = new THREE.ShaderMaterial( {
+			uniforms: this.uniforms,
+			transparent: false,
+			vertexShader: require('../shaders/base.vertex.glsl'),
+			fragmentShader: require('../shaders/base.fragment.glsl')
+		} );
 
-		//// AMBIANT LIGHT
-		this.ambient = new THREE.AmbientLight( config.lights.ambient.color );
+		this.material = new THREE.MeshBasicMaterial({
+			color: 'red'
+		})
 
-		//// ADD OBJECTS TO SCENE
+		this.plane    = new THREE.Mesh( this.geometry, this.material );
+		this.scene.add( this.plane );
+
+		this.axisHelper =  new THREE.AxisHelper( 5 );
+		this.scene.add( this.axisHelper );
+
+		this.ambient = new THREE.AmbientLight( 0xffffff );
 		this.scene.add( this.ambient );
 
-		//// ADD CANVAS TO DOM
-		this.container.appendChild( this.renderer.domElement );
+		this.el.addEventListener( device.pointermove, this.onPointermove );
+		this.el.appendChild( this.renderer.domElement );
 
 		this.onResize();
+	}
 
-		//// REGIST RENDERER
-		raf.register( this.render );
-		raf.start();
+	onResize() {
+		this.width 		= this.el.offsetWidth;
+		this.height 	= this.el.offsetHeight;
+		this.offset 	= getAbsoluteOffset( this.el );
 
-		window.addEventListener( 'resize', this.onResize );
-		window.addEventListener( 'mousemove', this.onMove );
-		window.addEventListener( 'click', this.onClick );
-	},
+		// https://stackoverflow.com/questions/14614252/how-to-fit-camera-to-object
+		// let fov = 2 * Math.atan( this.planeHeight / ( 2 * 100 ) ) * ( 180 / Math.PI );
+		this.renderer.setSize(this.width, this.height);
+		this.ratio = this.width / this.height;
 
-	setFaceColor: function( face ) {
-	},
+		this.camera.aspect = this.ratio;
+		this.camera.updateProjectionMatrix();
 
-	onClick: function( event ) {
-	},
+		this.uniforms.uResolution.value = new THREE.Vector2( this.width, this.height );
+	}
 
-	onMove: function( event ) {
-	},
+	onPointermove( event ) {
+		this.mousePos.x 		= event.clientX;
+		this.mousePos.y 		= event.clientY - ( this.offset.top - device.scroll.top );
+	}
 
-	onResize: function() {
-		this.container.width = this.container.offsetWidth;
-		this.container.height = this.container.offsetHeight;
-
-		this.renderer.setSize(window.innerWidth, window.innerHeight);
-		this.ratio = window.innerWidth / window.innerHeight;
-
-		this.halfWidth = window.innerWidth * .5;
-		this.halfHeight = window.innerHeight * .5;
-	},
-
-	render: function() {
+	onUpdate() {
 		this.renderer.render(this.scene, this.camera);
-	},
-};
+	}
+}

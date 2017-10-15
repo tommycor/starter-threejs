@@ -1,7 +1,5 @@
-import scene from './components/scene'
+import creator 	from './colorz/utils/creator';
 
-window.onload = function() {
+import Scene 	from './components/Scene';
 
-	scene.init();
-
-}
+window.scenes 	= creator( '.js-scene', Scene );
